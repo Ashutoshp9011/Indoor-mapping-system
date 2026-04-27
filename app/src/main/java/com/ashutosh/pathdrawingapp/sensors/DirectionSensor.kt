@@ -8,20 +8,24 @@ import android.hardware.SensorManager
 
 /**
  * DirectionSensor
- * ─────────────────────────────────────────────────────────────
- * Reads device heading from TYPE_ROTATION_VECTOR and applies a
- * low-pass filter to eliminate jitter from small phone rotations.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Reads device heading from TYPE_ROTATION_VECTOR and passes it through
+ * the three-stage HeadingStabiliser pipeline before firing the callback.
  *
- * alpha = 0.10f → very smooth (slower response)
- * alpha = 0.20f → good balance  ← default
- * alpha = 0.35f → faster, slightly more reactive
+ * What changed vs the old version:
+ *   OLD → single fixed-alpha low-pass filter (jittery on slow rotation,
+ *          sluggish on fast rotation, no corridor awareness)
+ *   NEW → HeadingStabiliser with:
+ *           • Median spike filter
+ *           • Adaptive low-pass (alpha scales with rotation speed)
+ *           • Soft map-based corridor hint (no rigid straight lock)
  */
 class DirectionSensor(
     context: Context,
     private val onDirectionChanged: (Float) -> Unit,
 ) : SensorEventListener {
 
-    private val sensorManager =
+    private val sensorManager: SensorManager =
         context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
 
     private val rotationSensor: Sensor? =
@@ -30,11 +34,14 @@ class DirectionSensor(
     private val rotationMatrix = FloatArray(9)
     private val orientation    = FloatArray(3)
 
-    private var smoothedAngle: Float? = null
-    private val alpha = 0.18f
+    // Three-stage heading pipeline
+    private val stabiliser = HeadingStabiliser()
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     fun start() {
         rotationSensor ?: return
+        stabiliser.reset()
         sensorManager.registerListener(
             this,
             rotationSensor,
@@ -46,33 +53,21 @@ class DirectionSensor(
         sensorManager.unregisterListener(this)
     }
 
+    // ── SensorEventListener ───────────────────────────────────────────────────
+
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
 
+        // 1. Get raw azimuth from rotation vector
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
         SensorManager.getOrientation(rotationMatrix, orientation)
+        val rawAzimuth = Math.toDegrees(orientation[0].toDouble()).toFloat()
 
-        val rawAngle = Math.toDegrees(orientation[0].toDouble()).toFloat()
+        // 2. Run through stabiliser pipeline
+        val stable = stabiliser.process(rawAzimuth)
 
-        // First sample — no filter yet
-        val current = smoothedAngle
-        if (current == null) {
-            smoothedAngle = rawAngle
-            onDirectionChanged(rawAngle)
-            return
-        }
-
-        // Handle 359° ↔ 0° wraparound
-        var delta = rawAngle - current
-        if (delta >  180f) delta -= 360f
-        if (delta < -180f) delta += 360f
-
-        var result = current + alpha * delta
-        if (result >  180f) result -= 360f
-        if (result < -180f) result += 360f
-
-        smoothedAngle = result
-        onDirectionChanged(result)
+        // 3. Fire callback with clean heading
+        onDirectionChanged(stable)
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

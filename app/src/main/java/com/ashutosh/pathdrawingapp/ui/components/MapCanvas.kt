@@ -91,6 +91,7 @@ private fun DrawScope.drawNode(node: MapNode, colors: com.ashutosh.pathdrawingap
         NodeType.ROOM -> colors.accent
         NodeType.HALL -> colors.purple
         NodeType.TOILET -> colors.amber
+        NodeType.LAB -> colors.green
         NodeType.CUSTOM -> colors.green
     }
 

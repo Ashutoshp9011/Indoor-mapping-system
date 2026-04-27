@@ -21,13 +21,20 @@ class MainActivity : ComponentActivity() {
     private val viewModel: IndoorMapViewModel by viewModels()
 
     private lateinit var directionSensor: DirectionSensor
-    private lateinit var stepDetector: StepDetector
+    private lateinit var stepDetector:    StepDetector
+
+    /**
+     * Always holds the latest stabilised heading from DirectionSensor.
+     * StepDetector callback reads this when a step fires so both
+     * values (step length + heading) are in sync.
+     */
     private var currentAngle = 0f
 
     companion object {
         private const val REQ_ACTIVITY = 1001
     }
 
+    // ─────────────────────────────────────────────────────────
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -38,22 +45,29 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // ── Direction sensor (smoothed) ──────────────────────
-        directionSensor = DirectionSensor(this) { angle ->
-            currentAngle = angle
-            viewModel.updateAngle(angle)
+        initSensors()
+        requestActivityPermission()
+    }
+
+    // ─────────────────────────────────────────────────────────
+
+    private fun initSensors() {
+
+        // 1. Direction sensor — HeadingStabiliser pipeline inside
+        directionSensor = DirectionSensor(this) { stableAngle ->
+            currentAngle = stableAngle
+            viewModel.updateAngle(stableAngle)
         }
 
-        // ── Real step detector ───────────────────────────────
-        stepDetector = StepDetector(this) {
-            viewModel.onStepDetected(currentAngle)
-        }
-
-        if (!hasActivityPermission()) {
-            requestActivityPermission()
+        // 2. Step detector — Weinberg adaptive step length inside
+        //    Passes both the per-step canvas pixels AND the latest heading
+        //    so ViewModel can apply the path-history hint correctly.
+        stepDetector = StepDetector(this) { stepLengthPx ->
+            viewModel.onStepDetected(stepLengthPx, currentAngle)
         }
     }
 
+    // ─────────────────────────────────────────────────────────
     override fun onResume() {
         super.onResume()
         directionSensor.start()
@@ -66,6 +80,8 @@ class MainActivity : ComponentActivity() {
         stepDetector.stop()
     }
 
+    // ── Permissions ──────────────────────────────────────────
+
     private fun hasActivityPermission(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ContextCompat.checkSelfPermission(
@@ -75,7 +91,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestActivityPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (!hasActivityPermission() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
@@ -92,8 +108,7 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_ACTIVITY) {
             if (grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED
-            ) {
+                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 stepDetector.start()
                 Toast.makeText(this, "Step tracking enabled ✓", Toast.LENGTH_SHORT).show()
             } else {

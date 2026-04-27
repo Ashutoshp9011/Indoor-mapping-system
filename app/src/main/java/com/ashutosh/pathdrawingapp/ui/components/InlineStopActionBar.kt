@@ -1,11 +1,10 @@
 package com.ashutosh.pathdrawingapp.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,17 +19,15 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.ashutosh.pathdrawingapp.NodeType
 import com.ashutosh.pathdrawingapp.ui.theme.LocalAppColors
 
 @Composable
-fun StopDetectedDialog(
+fun InlineStopActionBar(
     visible: Boolean,
     expanded: Boolean,
     modifier: Modifier = Modifier,
@@ -44,53 +41,35 @@ fun StopDetectedDialog(
 
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
-        exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom),
+        enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+        exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 }),
         modifier = modifier,
     ) {
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = colors.surface,
-            shadowElevation = 12.dp,
+            shape = RoundedCornerShape(28.dp),
+            color = colors.surface.copy(alpha = 0.96f),
+            shadowElevation = 10.dp,
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.surface)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    text = "You stopped walking",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.ink,
-                )
-
-                Text(
-                    text = "Add a quick left/right node, or open more place options.",
-                    fontSize = 12.sp,
-                    color = colors.inkSub,
-                )
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    QuickNodeButton(
+                    CompactActionButton(
                         label = "Left",
-                        color = colors.accent,
+                        color = colors.green,
                         modifier = Modifier.weight(1f),
                         onClick = onLeftNode,
                     )
                     Button(
                         onClick = onMoreToggle,
-                        modifier = Modifier.height(54.dp),
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp),
+                        shape = RoundedCornerShape(18.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = colors.surfaceHigh,
                             contentColor = colors.ink,
@@ -98,30 +77,30 @@ fun StopDetectedDialog(
                     ) {
                         Text(if (expanded) "Less" else "More", fontWeight = FontWeight.SemiBold)
                     }
-                    QuickNodeButton(
+                    CompactActionButton(
                         label = "Right",
-                        color = Color(0xFF8B5CF6),
+                        color = colors.accent,
                         modifier = Modifier.weight(1f),
                         onClick = onRightNode,
                     )
                 }
 
                 AnimatedVisibility(visible = expanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            MoreChip("Room", onClick = { onQuickType(NodeType.ROOM) })
-                            MoreChip("Toilet", onClick = { onQuickType(NodeType.TOILET) })
-                            MoreChip("Hall", onClick = { onQuickType(NodeType.HALL) })
+                            InlineChoiceChip("Room", Modifier.weight(1f)) { onQuickType(NodeType.ROOM) }
+                            InlineChoiceChip("Toilet", Modifier.weight(1f)) { onQuickType(NodeType.TOILET) }
+                            InlineChoiceChip("Hall", Modifier.weight(1f)) { onQuickType(NodeType.HALL) }
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            MoreChip("Lab", onClick = { onQuickType(NodeType.LAB) })
-                            MoreChip("Modify", onClick = onModify)
+                            InlineChoiceChip("Lab", Modifier.weight(1f)) { onQuickType(NodeType.LAB) }
+                            InlineChoiceChip("Modify", Modifier.weight(1f)) { onModify() }
                         }
                     }
                 }
@@ -131,7 +110,7 @@ fun StopDetectedDialog(
 }
 
 @Composable
-private fun QuickNodeButton(
+private fun CompactActionButton(
     label: String,
     color: Color,
     modifier: Modifier = Modifier,
@@ -139,8 +118,8 @@ private fun QuickNodeButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier.height(54.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.height(52.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = color,
             contentColor = Color.White,
@@ -151,14 +130,17 @@ private fun QuickNodeButton(
 }
 
 @Composable
-private fun MoreChip(
+private fun InlineChoiceChip(
     label: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val colors = LocalAppColors.current
     FilterChip(
         selected = false,
         onClick = onClick,
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
         label = { Text(label, fontWeight = FontWeight.Medium) },
         colors = FilterChipDefaults.filterChipColors(
             containerColor = colors.surfaceHigh,

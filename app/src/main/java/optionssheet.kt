@@ -327,6 +327,7 @@ private val typeOptions = listOf(
     TypeOption(NodeType.ROOM,   "🚪", "Room",   { it.accent },         { it.accentSoft }),
     TypeOption(NodeType.HALL,   "🏛️", "Hall",   { Color(0xFF8B5CF6) }, { Color(0xFFF3EEFF) }),
     TypeOption(NodeType.TOILET, "🚻", "Toilet", { it.amber },          { it.amberSoft }),
+    TypeOption(NodeType.LAB,    "🧪", "Lab",    { it.green },          { it.greenSoft }),
     TypeOption(NodeType.CUSTOM, "✏️", "Custom", { it.green },          { it.greenSoft }),
 )
 
